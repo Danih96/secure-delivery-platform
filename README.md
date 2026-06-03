@@ -1,8 +1,54 @@
 # secure-delivery-platform
 
-A minimal, progressive DevSecOps learning repo. Each week adds one layer of security practice.
+A DevSecOps portfolio project demonstrating security controls at every stage of the software delivery pipeline — built progressively over 13 weeks.
 
-**Week 1 focus:** Security scanning in CI — SAST, SCA, secret detection.
+**The problem:** most CI/CD pipelines deliver code fast but treat security as a post-deploy concern. Vulnerabilities, leaked credentials, and vulnerable dependencies reach production because no gate exists to catch them earlier.
+
+**The approach:** shift security left — wire automated scanning into the pipeline so every commit is checked before it can progress. Add security controls one layer at a time: pipeline → container → detection → infrastructure → IaC → cloud → Kubernetes.
+
+---
+
+## Security controls
+
+| Week | Layer | Tool | What it catches |
+|------|-------|------|-----------------|
+| 1 ✅ | Pipeline — SAST | Semgrep | Insecure code patterns: injection, path traversal, hardcoded secrets |
+| 1 ✅ | Pipeline — SCA | pip-audit | Vulnerable dependencies (CVEs via OSV database) |
+| 1 ✅ | Pipeline — Secrets | Gitleaks | Accidentally committed credentials in code and git history |
+| 2 | Container | Trivy + Hadolint | Image CVEs, Dockerfile misconfigurations |
+| 3 | Detection | Prometheus + Alertmanager | Auth failures, container anomalies, outbound connections |
+| 4 | Response | — | Incident simulation, postmortem |
+| 5 | Infrastructure | — | Proxmox hardening, backup/restore security |
+| 6–8 | IaC | Pulumi + Checkov + OPA | Misconfigurations before deploy; policy gates |
+| 9 | Cloud | — | Security architecture concepts (Azure / AWS) |
+| 10–11 | Kubernetes | kubescape | RBAC, NetworkPolicy, Pod Security |
+
+All Week 1 pipeline jobs run in parallel on every push and PR to `main`. Each job is scoped to `permissions: contents: read` — least privilege applied to the pipeline itself.
+
+→ [`docs/supply-chain.md`](docs/supply-chain.md) — how each control works and what it found  
+→ [`docs/findings-log.md`](docs/findings-log.md) — triaged findings with severity and fix status  
+→ [`docs/threat-model.md`](docs/threat-model.md) — STRIDE threat model (stub, completed Week 12)
+
+---
+
+## Pipeline (Week 1)
+
+```
+push / pull_request to main
+          ↓
+  ┌───────────────────────────────────────┐
+  │  sast     Semgrep     code patterns   │
+  │  sca      pip-audit   CVEs            │  ← parallel
+  │  secrets  Gitleaks    credentials     │
+  └───────────────────────────────────────┘
+          ↓
+  Results → Security tab / artifacts / job logs
+```
+
+View results:
+- **Code Scanning alerts:** Security tab → Code scanning
+- **SCA report:** Actions → run → Artifacts → `pip-audit-results`
+- **Secret scan:** Actions → `secrets` job logs
 
 ---
 
@@ -10,69 +56,33 @@ A minimal, progressive DevSecOps learning repo. Each week adds one layer of secu
 
 ```
 .github/workflows/
-  security-scan.yml   ← GitHub Actions pipeline (3 scan jobs)
+  security-scan.yml     ← pipeline: SAST + SCA + secret scanning
 
 app/
-  main.py             ← Intentionally vulnerable Python app (for scanner testing only)
+  main.py               ← intentionally vulnerable app (scanner test target)
 
 docs/
-  week1-scanners.md   ← What each scanner does, why it matters, how to read results
+  supply-chain.md       ← controls: threat, placement, findings, interview answer
+  findings-log.md       ← triaged findings with severity and fix status
+  threat-model.md       ← STRIDE stub (completed Week 12)
+  week1-scanners.md     ← scanner deep-dives and local run instructions
 
-requirements.txt      ← Pinned to known-vulnerable versions (for SCA testing)
-CHECKLIST-WEEK1.md    ← Step-by-step exercises for Week 1
-.gitignore
+requirements.txt        ← pinned to CVE-carrying versions (SCA test target)
+CHECKLIST-WEEK1.md      ← Week 1 exercises
 ```
+
+> `app/main.py` and `requirements.txt` are **deliberately insecure** for scanner testing. Do not deploy.
 
 ---
 
-## What the pipeline does
-
-Three jobs run in parallel on every push/PR to `main`:
-
-| Job | Tool | Scans for |
-|-----|------|-----------|
-| `sast` | Semgrep | Insecure code patterns |
-| `sca` | pip-audit | Vulnerable dependencies |
-| `secrets` | Gitleaks | Leaked credentials |
-
-See [`docs/week1-scanners.md`](docs/week1-scanners.md) for details on each tool.
-
----
-
-## Quickstart
-
-### 1. Push to GitHub
+## Run scanners locally
 
 ```bash
-cd secure-delivery-platform
-git init
-git add .
-git commit -m "Week 1: security scanning scaffold"
-git remote add origin https://github.com/YOUR_USERNAME/secure-delivery-platform.git
-git push -u origin main
-```
-
-### 2. Watch Actions run
-
-Go to your repo → **Actions** tab → click the `Security Scan` workflow.
-
-All three jobs should run. SAST and SCA will find intentional issues — that's expected.
-
-### 3. View results
-
-- **Code Scanning Alerts:** Security tab → Code scanning alerts (Semgrep SARIF)
-- **SCA results:** Actions → select the run → Artifacts → `pip-audit-results`
-- **Gitleaks:** check the `secrets` job logs
-
-### 4. Run locally
-
-```bash
-# Install tools
 pip install semgrep pip-audit
-brew install gitleaks   # macOS; or: https://github.com/gitleaks/gitleaks#installing
+brew install gitleaks       # macOS
 
 # SAST
-semgrep --config p/python --config p/secrets app/
+semgrep --config p/python --config p/owasp-top-ten app/
 
 # SCA
 pip-audit --requirement requirements.txt
@@ -83,15 +93,6 @@ gitleaks detect --source .
 
 ---
 
-## Important
+## Security tradeoff
 
-`app/main.py` and `requirements.txt` are **deliberately insecure** for learning purposes. Do not deploy them.
-
----
-
-## Roadmap
-
-- Week 1: Security scanning (SAST, SCA, secrets) ← you are here
-- Week 2: Container security (Docker image scanning, least-privilege)
-- Week 3: IaC security (Terraform/Ansible linting)
-- Week 4: CI/CD hardening (branch protection, signed commits, OIDC)
+This repo is **public** to enable free GitHub Advanced Security (SARIF upload to the Security tab). The intentionally vulnerable app is clearly labelled as a learning artefact. No real secrets, credentials, or production data are committed — enforced by `.gitignore` and Gitleaks on every push.

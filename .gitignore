@@ -1,7 +1,30 @@
+# Python
 __pycache__/
 *.pyc
-.env
 venv/
 .venv/
+
+# Environment and secrets
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+secrets.yaml
+secrets.yml
+
+# IaC state and vars (added Week 6-8, kept here as guard)
+terraform.tfstate
+terraform.tfstate.backup
+*.tfvars
+.pulumi/
+
+# CI-generated artefacts (downloaded from Actions, not committed)
+pip-audit-results.json
+semgrep.sarif
+
+# Logs and editor noise
 *.log
 .semgrep/
+.DS_Store
