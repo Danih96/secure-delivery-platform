@@ -108,3 +108,50 @@ jobs:
           # GITLEAKS_LICENSE is only needed for Gitleaks for Orgs (paid).
           # For personal/public repos, remove this line.
           # GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  # ──────────────────────────────────────────────
+  # Dockerfile Lint
+  # Tool: Hadolint (free, open-source)
+  # What it does: lints the Dockerfile for bad practices —
+  #   running as root, using latest tag, ADD vs COPY, missing
+  #   --no-cache-dir on pip install, etc.
+  # ──────────────────────────────────────────────
+  hadolint:
+    name: Hadolint (Dockerfile lint)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: docker/Dockerfile
+
+  # ──────────────────────────────────────────────
+  # Image Scan
+  # Tool: Trivy (free, open-source, from Aqua Security)
+  # What it does: builds the Docker image and scans it for CVEs
+  #   in OS packages and Python dependencies (pip).
+  # Fails the job on CRITICAL or HIGH findings — the pipeline
+  # goes red when the image ships known vulnerabilities.
+  # ──────────────────────────────────────────────
+  trivy:
+    name: Trivy (image scan)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -f docker/Dockerfile -t secure-app:scan .
+
+      - name: Run Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: secure-app:scan
+          format: table
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
