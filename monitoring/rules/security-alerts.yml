@@ -1,0 +1,58 @@
+groups:
+  - name: security
+    rules:
+
+      # ── Signal 1: Auth failure spike ──────────────────────────────────────
+      # Threat: brute-force, credential stuffing, account enumeration.
+      # Metric source: app-level Prometheus exporter (e.g. prometheus_flask_exporter).
+      # Threshold: >10 auth failures/s sustained for 2 min — adjust to your baseline.
+      - alert: AuthFailureSpike
+        expr: >
+          sum(rate(http_requests_total{status=~"401|403"}[5m])) by (job) > 10
+        for: 2m
+        labels:
+          severity: warning
+          category: authentication
+        annotations:
+          summary: "Auth failure spike on {{ $labels.job }}"
+          description: >
+            {{ $value | printf "%.1f" }} failures/s for 2m.
+            Possible brute-force or credential stuffing attack.
+            Investigate source IPs in access logs.
+
+      # ── Signal 2: Container restart anomaly ───────────────────────────────
+      # Threat: crash-loop from exploit payload, OOM from DoS, C2 runner cycling.
+      # Metric source: cAdvisor (container_start_time_seconds).
+      # changes() counts how many times the start timestamp changed — i.e. restarts.
+      - alert: ContainerRestartAnomaly
+        expr: >
+          changes(container_start_time_seconds{name!=""}[10m]) > 2
+        for: 0m
+        labels:
+          severity: warning
+          category: availability
+        annotations:
+          summary: "Container {{ $labels.name }} restarting unexpectedly"
+          description: >
+            {{ $value }} restarts in 10m.
+            Legitimate causes: OOM kill, bad config.
+            Adversarial causes: crash-loop from exploit, runner cycling.
+            Check: docker logs {{ $labels.name }}
+
+      # ── Signal 3: High outbound network traffic ────────────────────────────
+      # Threat: data exfiltration, C2 beacon, cryptominer outbound.
+      # Metric source: cAdvisor (container_network_transmit_bytes_total).
+      # Threshold: 10 MB/s is high for a dev-sized app — tune to your baseline.
+      - alert: HighOutboundTraffic
+        expr: >
+          rate(container_network_transmit_bytes_total{name!=""}[5m]) > 10485760
+        for: 5m
+        labels:
+          severity: warning
+          category: network
+        annotations:
+          summary: "High outbound traffic from {{ $labels.name }}"
+          description: >
+            {{ $value | humanize }}B/s sustained for 5m.
+            Possible data exfiltration or C2 beacon.
+            Investigate: netstat -tnp inside container, or check firewall logs.

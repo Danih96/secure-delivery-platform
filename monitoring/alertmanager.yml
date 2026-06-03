@@ -1,0 +1,23 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ['alertname', 'severity', 'category']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 1h
+  receiver: default
+
+receivers:
+  - name: default
+    webhook_configs:
+      # Replace with your actual webhook (Slack, PagerDuty, n8n, etc.)
+      # Week 7 adds an n8n workflow that receives this webhook and logs to Notion.
+      - url: 'http://REPLACE_WITH_WEBHOOK_URL'
+        send_resolved: true
+
+inhibit_rules:
+  # Suppress warnings if a critical alert is already firing for the same container.
+  - source_matchers: [severity="critical"]
+    target_matchers: [severity="warning"]
+    equal: ['name']
