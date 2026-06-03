@@ -1,0 +1,52 @@
+version: 2
+updates:
+
+  # ── GitHub Actions ──────────────────────────────────────────────────────
+  # Keeps action versions (actions/checkout@v4, semgrep/semgrep-action@v1,
+  # aquasecurity/trivy-action@0.28.0, etc.) current.
+  # A stale action is a supply-chain risk: you're running someone else's code
+  # at a potentially vulnerable version on every push.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - security
+
+  # ── App Dockerfile ───────────────────────────────────────────────────────
+  # Watches docker/Dockerfile — bumps the pinned base image
+  # (e.g. python:3.12.10-slim → python:3.12.11-slim).
+  # When this PR opens, Trivy runs on the new image before merge.
+  - package-ecosystem: docker
+    directory: /docker
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - security
+
+  # ── Monitoring stack images ──────────────────────────────────────────────
+  # Watches monitoring/docker-compose.yml — bumps Prometheus, Grafana,
+  # Alertmanager, cAdvisor, node-exporter image versions.
+  # This is the right pattern for third-party infra images: pin + let
+  # Dependabot propose the bump, rather than failing CI on their CVEs.
+  - package-ecosystem: docker
+    directory: /monitoring
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - security
+
+  # ── Python dependencies ──────────────────────────────────────────────────
+  # Watches requirements.txt. Note: this repo intentionally uses vulnerable
+  # versions for scanner testing (flask==0.12.2 etc.). Dependabot PRs here
+  # will be opened but intentionally left unmerged to preserve the scanner
+  # test target. In a real app these PRs would be reviewed and merged promptly.
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
