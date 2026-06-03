@@ -1,0 +1,110 @@
+name: Security Scan
+
+# Runs on every push and pull request to main.
+# Also manually triggerable via the GitHub Actions UI.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+
+  # ──────────────────────────────────────────────
+  # SAST — Static Application Security Testing
+  # Tool: Semgrep (free, open-source)
+  # What it does: scans source code for insecure patterns
+  #   (hardcoded secrets, command injection, path traversal, etc.)
+  #   without running the code.
+  # ──────────────────────────────────────────────
+  sast:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write   # needed to upload SARIF results
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: >-
+            p/python
+            p/secrets
+            p/owasp-top-ten
+        env:
+          # Optional: sign up at semgrep.dev for a free account to see
+          # results in the Semgrep dashboard. Remove if you don't want this.
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+
+      # Upload results to GitHub Security tab (Code Scanning Alerts).
+      # Requires GitHub Advanced Security (free for public repos).
+      - name: Upload SARIF to GitHub
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+        continue-on-error: true   # don't fail if SARIF wasn't produced
+
+  # ──────────────────────────────────────────────
+  # SCA — Software Composition Analysis
+  # Tool: pip-audit (free, open-source, from PyPA)
+  # What it does: checks your Python dependencies (requirements.txt)
+  #   against the OSV vulnerability database for known CVEs.
+  # ──────────────────────────────────────────────
+  sca:
+    name: SCA (pip-audit)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Run pip-audit
+        # --requirement: scan requirements.txt
+        # --output json: machine-readable output
+        # Exit code 1 if vulnerabilities found — this intentionally fails
+        # the job so you see a red check. Remove || true to enforce.
+        run: |
+          pip-audit --requirement requirements.txt --output json \
+            | tee pip-audit-results.json || true
+
+      - name: Upload pip-audit results
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-audit-results
+          path: pip-audit-results.json
+
+  # ──────────────────────────────────────────────
+  # Secret Scanning
+  # Tool: Gitleaks (free, open-source)
+  # What it does: scans git history and current files for accidentally
+  #   committed secrets — API keys, passwords, tokens, etc.
+  # ──────────────────────────────────────────────
+  secrets:
+    name: Secret Scanning (Gitleaks)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so Gitleaks can scan all commits
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GITLEAKS_LICENSE is only needed for Gitleaks for Orgs (paid).
+          # For personal/public repos, remove this line.
+          # GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
