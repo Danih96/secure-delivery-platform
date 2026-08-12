@@ -1,4 +1,4 @@
-FROM python:3.12.10-slim
+FROM python:3.14.0-slim
 
 # Non-root user — limits blast radius if the app is exploited
 RUN useradd --no-create-home --shell /bin/false appuser
